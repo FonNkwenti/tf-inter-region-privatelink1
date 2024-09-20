@@ -11,7 +11,7 @@ data "aws_caller_identity" "region" {
   provider = aws.service_provider_region
 }
 
-data "aws_ami" "amazon_linux_2" {
+data "aws_ami" "amazon_linux_2_main" {
   most_recent = true
   owners      = ["amazon"]
 
@@ -19,6 +19,17 @@ data "aws_ami" "amazon_linux_2" {
     name   = "name"
     values = ["amzn2-ami-hvm*"]
   }
+  provider = aws.service_provider_main
+}
+data "aws_ami" "amazon_linux_2_region" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
+  }
+  provider = aws.service_provider_region
 }
 
 
@@ -38,7 +49,8 @@ locals {
   main_az2   = data.aws_availability_zones.main.names[1]
   region_az2 = data.aws_availability_zones.region.names[1]
 
-  ami = data.aws_ami.amazon_linux_2.id
+  main_ami   = data.aws_ami.amazon_linux_2_main.id
+  region_ami = data.aws_ami.amazon_linux_2_region.id
 
   instance_name = "${local.name}-saas"
   vpc_name      = "${local.name}-vpc"
