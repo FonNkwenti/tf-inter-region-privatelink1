@@ -93,58 +93,6 @@ resource "aws_security_group" "main_icmp" {
   provider = aws.service_provider_main
 }
 
-/////////////////
-resource "aws_instance" "main_2_test" {
-  ami           = local.main_ami
-  instance_type = "t2.micro"
-  subnet_id     = element(module.service_provider_main_2.private_subnets, 0)
-  #   subnet_id              = aws_subnet.pri_sn1_az1.id
-  associate_public_ip_address = false
-  #   key_name                    = "default-euw1"
-  vpc_security_group_ids = [aws_security_group.main_2_icmp.id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
-
-  tags = merge(local.common_tags, {
-    Name = "main-2"
-  })
-
-  provider = aws.service_provider_main
-}
-
-
-resource "aws_security_group" "main_2_icmp" {
-  name        = "main-2-test-instance"
-  description = "Allow ICMP pings for tests"
-  vpc_id      = module.service_provider_main_2.vpc_id
-
-  ingress {
-    from_port   = 8
-    to_port     = 0
-    protocol    = "icmp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "TCP"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(local.common_tags, {
-    Name = "main-2-test-instance"
-  })
-  provider = aws.service_provider_main
-}
-
-
-
 
 resource "aws_instance" "region_test" {
   ami           = local.region_ami

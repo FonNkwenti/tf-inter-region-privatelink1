@@ -6,7 +6,7 @@ module "service_provider_main" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = local.name
+  name = local.name  
   cidr = local.main_vpc_cidr
 
   azs             = local.main_azs
@@ -28,13 +28,6 @@ module "service_provider_main" {
   }
 }
 
-resource "aws_route" "private_static_route_to_tgw" {
-  count                  = length(module.service_provider_main.private_route_table_ids)
-  route_table_id         = element(module.service_provider_main.private_route_table_ids, count.index)
-  destination_cidr_block = "10.10.0.0/16"                       
-  transit_gateway_id     = aws_ec2_transit_gateway.main_tgw.id 
-  provider = aws.service_provider_main
-}
 
 resource "aws_route" "region_cidr_to_main_tgw" {
   count                  = length(module.service_provider_main.private_route_table_ids)
@@ -85,8 +78,8 @@ module "service_provider_region" {
 resource "aws_ec2_transit_gateway" "main_tgw" {
   description = "Transit Gateway for application region"
 
-  default_route_table_association = "disable"
-  default_route_table_propagation = "disable"
+  # default_route_table_association = "disable"
+  # default_route_table_propagation = "disable"
 
   tags = merge(local.common_tags, {
     Name = "main-tgw"
@@ -105,22 +98,25 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "main_tgw_attachment" {
   provider = aws.service_provider_main
 }
 
-# Create a Transit Gateway route table if not created yet
-resource "aws_ec2_transit_gateway_route_table" "main_tgw_route_table" {
-  transit_gateway_id = aws_ec2_transit_gateway.main_tgw.id
 
-  tags = merge(local.common_tags, {
-    Name = "main-tgw-route-table"
-  })
+data "aws_ec2_transit_gateway_route_table" "main_tgw_default_route_table" {
+  filter {
+    name   = "default-association-route-table"
+    values = ["true"]
+  }
+
+  # transit_gateway_id = aws_ec2_transit_gateway.main_tgw.id
+  provider           = aws.service_provider_main
 }
+
 
 # enable route propagation for service_provider_main vpc in the transit gateway
-resource "aws_ec2_transit_gateway_route_table_propagation" "main_tgw_propagation" {
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.main_tgw_attachment.id
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main_tgw_route_table.id
+# resource "aws_ec2_transit_gateway_route_table_propagation" "main_tgw_propagation" {
+#   transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.main_tgw_attachment.id
+#   transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main_tgw_route_table.id
 
-  provider = aws.service_provider_main
-}
+#   provider = aws.service_provider_main
+# }
 
 # # Route to service_provider_region CIDR
 # resource "aws_ec2_transit_gateway_route" "main_tgw_route_to_region" {
@@ -148,8 +144,8 @@ resource "aws_route" "main_cidr_to_region_tgw" {
 resource "aws_ec2_transit_gateway" "region_tgw" {
   description = "Transit Gateway for region"
 
-  default_route_table_association = "disable"
-  default_route_table_propagation = "disable"
+  # default_route_table_association = "disable"
+  # default_route_table_propagation = "disable"
 
   tags = merge(local.common_tags, {
     Name = "region-tgw"
@@ -168,6 +164,16 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "region_tgw_attachment" {
   provider = aws.service_provider_region
 }
 
+data "aws_ec2_transit_gateway_route_table" "region_tgw_default_route_table" {
+  filter {
+    name   = "default-association-route-table"
+    values = ["true"]
+  }
+
+  # transit_gateway_id = aws_ec2_transit_gateway.region_tgw.id
+  provider           = aws.service_provider_region
+}
+
 resource "aws_ec2_transit_gateway_route_table" "region_tgw_route_table" {
   transit_gateway_id = aws_ec2_transit_gateway.region_tgw.id
 
@@ -176,17 +182,6 @@ resource "aws_ec2_transit_gateway_route_table" "region_tgw_route_table" {
   })
   provider = aws.service_provider_region
 }
-
-
-
-resource "aws_ec2_transit_gateway_route_table_propagation" "region_vpc_propagation" {
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.region_tgw_attachment.id
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.region_tgw_route_table.id
-
-  provider = aws.service_provider_region
-}
-
-
 
 
 ## TGW PEERING
@@ -215,8 +210,8 @@ data "aws_ec2_transit_gateway_peering_attachment" "accepter_peering_data" {
   }
   filter {
     name   = "transit-gateway-id"
-    values = [aws_ec2_transit_gateway_peering_attachment.main_region_peering.peer_transit_gateway_id] 
-    # values = [aws_ec2_transit_gateway.region_tgw.id] 
+    # values = [aws_ec2_transit_gateway_peering_attachment.main_region_peering.peer_transit_gateway_id] 
+    values = [aws_ec2_transit_gateway.region_tgw.id] 
   }
   provider = aws.service_provider_region
 }
@@ -237,35 +232,34 @@ resource "aws_ec2_transit_gateway_peering_attachment_accepter" "region_accept_ma
 
 
 resource "aws_ec2_transit_gateway_route" "main_to_region_route" {
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main_tgw_route_table.id
+  transit_gateway_route_table_id = data.aws_ec2_transit_gateway_route_table.main_tgw_default_route_table.id
+  # transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main_tgw_route_table.id
   destination_cidr_block         = local.region_vpc_cidr
   transit_gateway_attachment_id  = aws_ec2_transit_gateway_peering_attachment.main_region_peering.id
+
+    depends_on = [
+    aws_ec2_transit_gateway_peering_attachment.main_region_peering,
+    aws_ec2_transit_gateway_vpc_attachment.main_tgw_attachment,
+  ]
 
   provider = aws.service_provider_main
 }
 
 
-
 resource "aws_ec2_transit_gateway_route" "region_to_main_route" {
-  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.region_tgw_route_table.id
+  transit_gateway_route_table_id = data.aws_ec2_transit_gateway_route_table.region_tgw_default_route_table.id
+  # transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.region_tgw_route_table.id
   destination_cidr_block         = local.main_vpc_cidr
   transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_peering_attachment.accepter_peering_data.id
+
+    depends_on = [
+    aws_ec2_transit_gateway_peering_attachment.main_region_peering,
+    aws_ec2_transit_gateway_vpc_attachment.region_tgw_attachment,
+    aws_ec2_transit_gateway_peering_attachment_accepter.region_accept_main,
+  ]
 
   provider = aws.service_provider_region
 }
 
-# resource "aws_ec2_transit_gateway_route_table_association" "main_tgw_peering_association" {
-#   transit_gateway_attachment_id  = aws_ec2_transit_gateway_peering_attachment.main_region_peering.id
-#   transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main_tgw_route_table.id
-
-#   provider = aws.service_provider_main
-# }
-
-# resource "aws_ec2_transit_gateway_route_table_association" "region_tgw_peering_association" {
-#   transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_peering_attachment.accepter_peering_data.id
-#   transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.region_tgw_route_table.id
-
-#   provider = aws.service_provider_region
-# }
 
 
