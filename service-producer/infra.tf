@@ -6,7 +6,7 @@ module "service_provider_main" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = local.name  
+  name = local.name
   cidr = local.main_vpc_cidr
 
   azs             = local.main_azs
@@ -32,9 +32,9 @@ module "service_provider_main" {
 resource "aws_route" "region_cidr_to_main_tgw" {
   count                  = length(module.service_provider_main.private_route_table_ids)
   route_table_id         = element(module.service_provider_main.private_route_table_ids, count.index)
-  destination_cidr_block = local.region_vpc_cidr                      
-  transit_gateway_id     = aws_ec2_transit_gateway.main_tgw.id 
-  
+  destination_cidr_block = local.region_vpc_cidr
+  transit_gateway_id     = aws_ec2_transit_gateway.main_tgw.id
+
   provider = aws.service_provider_main
 }
 
@@ -106,7 +106,9 @@ data "aws_ec2_transit_gateway_route_table" "main_tgw_default_route_table" {
   }
 
   # transit_gateway_id = aws_ec2_transit_gateway.main_tgw.id
-  provider           = aws.service_provider_main
+  provider = aws.service_provider_main
+
+  depends_on = [aws_ec2_transit_gateway.main_tgw]
 }
 
 
@@ -171,7 +173,8 @@ data "aws_ec2_transit_gateway_route_table" "region_tgw_default_route_table" {
   }
 
   # transit_gateway_id = aws_ec2_transit_gateway.region_tgw.id
-  provider           = aws.service_provider_region
+  depends_on = [aws_ec2_transit_gateway.region_tgw]
+  provider   = aws.service_provider_region
 }
 
 resource "aws_ec2_transit_gateway_route_table" "region_tgw_route_table" {
@@ -206,12 +209,12 @@ data "aws_ec2_transit_gateway_peering_attachment" "accepter_peering_data" {
   depends_on = [aws_ec2_transit_gateway_peering_attachment.main_region_peering]
   filter {
     name   = "state"
-    values = ["pendingAcceptance", "available"] 
+    values = ["pendingAcceptance", "available"]
   }
   filter {
-    name   = "transit-gateway-id"
+    name = "transit-gateway-id"
     # values = [aws_ec2_transit_gateway_peering_attachment.main_region_peering.peer_transit_gateway_id] 
-    values = [aws_ec2_transit_gateway.region_tgw.id] 
+    values = [aws_ec2_transit_gateway.region_tgw.id]
   }
   provider = aws.service_provider_region
 }
@@ -234,12 +237,13 @@ resource "aws_ec2_transit_gateway_peering_attachment_accepter" "region_accept_ma
 resource "aws_ec2_transit_gateway_route" "main_to_region_route" {
   transit_gateway_route_table_id = data.aws_ec2_transit_gateway_route_table.main_tgw_default_route_table.id
   # transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main_tgw_route_table.id
-  destination_cidr_block         = local.region_vpc_cidr
-  transit_gateway_attachment_id  = aws_ec2_transit_gateway_peering_attachment.main_region_peering.id
+  destination_cidr_block        = local.region_vpc_cidr
+  transit_gateway_attachment_id = aws_ec2_transit_gateway_peering_attachment.main_region_peering.id
 
-    depends_on = [
+  depends_on = [
     aws_ec2_transit_gateway_peering_attachment.main_region_peering,
     aws_ec2_transit_gateway_vpc_attachment.main_tgw_attachment,
+    aws_ec2_transit_gateway_peering_attachment_accepter.region_accept_main
   ]
 
   provider = aws.service_provider_main
@@ -249,10 +253,10 @@ resource "aws_ec2_transit_gateway_route" "main_to_region_route" {
 resource "aws_ec2_transit_gateway_route" "region_to_main_route" {
   transit_gateway_route_table_id = data.aws_ec2_transit_gateway_route_table.region_tgw_default_route_table.id
   # transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.region_tgw_route_table.id
-  destination_cidr_block         = local.main_vpc_cidr
-  transit_gateway_attachment_id  = data.aws_ec2_transit_gateway_peering_attachment.accepter_peering_data.id
+  destination_cidr_block        = local.main_vpc_cidr
+  transit_gateway_attachment_id = data.aws_ec2_transit_gateway_peering_attachment.accepter_peering_data.id
 
-    depends_on = [
+  depends_on = [
     aws_ec2_transit_gateway_peering_attachment.main_region_peering,
     aws_ec2_transit_gateway_vpc_attachment.region_tgw_attachment,
     aws_ec2_transit_gateway_peering_attachment_accepter.region_accept_main,

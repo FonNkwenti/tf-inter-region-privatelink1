@@ -149,7 +149,7 @@ resource "aws_security_group" "application_http" {
   description = "Allow HTTP/HTTPS traffic from consumers"
   vpc_id      = module.service_provider_main.vpc_id
 
-    ingress {
+  ingress {
     from_port   = 8
     to_port     = 0
     protocol    = "icmp"
@@ -157,10 +157,10 @@ resource "aws_security_group" "application_http" {
   }
 
   ingress {
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    cidr_blocks     = ["0.0.0.0/0"]
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
     # security_groups = [aws_security_group.endpoint_service.id]
   }
   ingress {

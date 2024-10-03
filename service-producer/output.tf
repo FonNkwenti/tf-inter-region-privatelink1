@@ -22,3 +22,16 @@ output "aws_autoscaling_group_instance_name" {
 }
 
 
+data "aws_autoscaling_group" "application" {
+  name = aws_autoscaling_group.application.name
+}
+
+data "aws_instances" "application" {
+  instance_tags = {
+    Name = aws_autoscaling_group.application.name
+  }
+}
+
+output "private_ips" {
+  value = data.aws_instances.application.private_ips
+}

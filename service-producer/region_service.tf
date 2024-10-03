@@ -7,8 +7,8 @@ resource "aws_lb" "region_private_nlb" {
   internal           = true
   load_balancer_type = "network"
   subnets            = module.service_provider_region.private_subnets
-#   subnets            = module.service_provider_region.private_subnets
-  security_groups    = [aws_security_group.region_endpoint_service.id]
+  #   subnets            = module.service_provider_region.private_subnets
+  security_groups = [aws_security_group.region_endpoint_service.id]
 
   enable_deletion_protection       = false
   enable_cross_zone_load_balancing = true
@@ -22,10 +22,25 @@ resource "aws_lb" "region_private_nlb" {
 }
 
 data "aws_autoscaling_group" "main_private_nlb" {
-  name = aws_autoscaling_group.application.name
+  name     = aws_autoscaling_group.application.name
+  
   provider = aws.service_provider_main
 }
 
+resource "aws_lb_listener" "region_private_nlb_listener" {
+  load_balancer_arn = aws_lb.region_private_nlb.arn
+  port              = 80
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.region_private_nlb_tg.arn
+  }
+  tags = local.common_tags
+
+  provider = aws.service_provider_region
+
+}
 
 resource "aws_lb_target_group" "region_private_nlb_tg" {
   name        = "app-region-private-nlb-tg"
@@ -52,32 +67,18 @@ resource "aws_lb_target_group" "region_private_nlb_tg" {
   provider = aws.service_provider_region
 }
 
-resource "aws_lb_listener" "region_private_nlb_listener" {
-  load_balancer_arn = aws_lb.region_private_nlb.arn
-  port              = 80
-  protocol          = "TCP"
 
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.region_private_nlb_tg.arn
-  }
-  tags = local.common_tags
-
-  provider = aws.service_provider_region
-
-}
-
-# resource "aws_lb_target_group_attachment" "region_private_nlb_tg_attachment" {
-#   for_each = {
-#     for instance in data.aws_autoscaling_group.main_private_nlb.instances :
-#     instance.id => instance
-#   }
-
+# resource "aws_lb_target_group_attachment" "application" {
+#   count            = length(data.aws_instances.application.private_ips)
 #   target_group_arn = aws_lb_target_group.region_private_nlb_tg.arn
-#   target_id        = each.key  # This is the instance ID
-#   port             = 80
+#   target_id        = element(data.aws_instances.application.private_ips, count.index)
 # }
 
+# resource "aws_lb_target_group_attachment" "all_brokers_broker" {
+#   count            = length(data.aws_instances.application.private_ips)
+#   target_group_arn = aws_lb_target_group.region_private_nlb_tg.arn
+#   target_id        = data.aws_instances.application.private_ips[count.index]
+# }
 
 resource "aws_vpc_endpoint_service" "region" {
   acceptance_required        = false # should be true in real life
@@ -89,8 +90,6 @@ resource "aws_vpc_endpoint_service" "region" {
   provider = aws.service_provider_region
 
 }
-
-
 
 
 resource "aws_security_group" "region_endpoint_service" {
@@ -123,3 +122,4 @@ resource "aws_security_group" "region_endpoint_service" {
   })
   provider = aws.service_provider_region
 }
+
