@@ -91,3 +91,5 @@ secrets.json
 .src/files
 *.txt
 .txt
+*.tft
+.tft
