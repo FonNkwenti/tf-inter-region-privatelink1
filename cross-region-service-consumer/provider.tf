@@ -9,8 +9,7 @@ terraform {
 
 provider "aws" {
   alias                    = "service_consumer_main"
-  region                   = "eu-central-1"
-  # region                   = "eu-west-1"
+  region                   = "eu-west-1"
   shared_credentials_files = ["~/.aws/credentials"]
   profile                  = "aai-admin"
   default_tags {
@@ -22,8 +21,7 @@ provider "aws" {
 
 provider "aws" {
   alias                    = "service_consumer_transit"
-  region                   = "eu-west-1"
-  # region                   = "eu-central-1"
+  region                   = "eu-central-1"
   shared_credentials_files = ["~/.aws/credentials"]
   profile                  = "aai-admin"
   default_tags {

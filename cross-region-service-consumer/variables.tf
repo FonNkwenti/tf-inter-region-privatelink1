@@ -52,3 +52,8 @@ variable "vpc_cidr" {
   description = "CIDR block of the VPC"
 }
 
+variable "ssh_key_pair" {
+  type = string
+  description = "name of existing SSH key pair"
+  
+}

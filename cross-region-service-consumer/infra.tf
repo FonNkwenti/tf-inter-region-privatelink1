@@ -19,6 +19,9 @@ module "service_consumer_main" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
+  manage_default_security_group = false
+  manage_default_network_acl    = false
+
   tags = merge(local.common_tags, {
     Name = "${local.name}-vpc"
   })
@@ -113,74 +116,48 @@ resource "aws_ec2_transit_gateway_route" "main_to_transit_route" {
 }
 
 
+resource "aws_ec2_instance_connect_endpoint" "this" {
+  subnet_id  = element(module.service_consumer_main.private_subnets, 0)  
+  depends_on = [module.ec2_instance]
+  security_group_ids = [module.instance_security_group.security_group_id]
 
-
-
-
-/////////
-
-resource "aws_vpc_endpoint" "ssm_ep" {
-  for_each = local.ssm_services
-  vpc_id   = module.service_consumer_main.vpc_id
-  ip_address_type     = "ipv4"
-  vpc_endpoint_type   = "Interface"
-
-  service_name        = each.value.name
-  security_group_ids  = [aws_security_group.ssm.id]
-  private_dns_enabled = true
-  subnet_ids          = module.service_consumer_main.private_subnets
-
-  tags = merge(local.common_tags, {
-    Name = "main-ssm-endpoint"
-  })
+  tags = local.common_tags
 
   provider = aws.service_consumer_main
 }
 
-resource "aws_security_group" "ssm" {
-  name        = "allow-ssm"
-  description = "Allow traffic to SSM endpoint"
+
+
+
+module "instance_connect_security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "5.1.0"
+
+  name        = "ec2-instance-connect-sg"
   vpc_id      = module.service_consumer_main.vpc_id
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    # cidr_blocks = [aws_subnet.pri_sn1_az1.cidr_block]
-    # cidr_blocks = module.service_consumer_main.private_subnets_cidr_blocks
+  description = "private instance security group"
+
+  ingress_with_cidr_blocks = [
+    {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = "0.0.0.0/0"
+      description = "allow all traffic"
+    }
+  ]
+
+  egress_with_cidr_blocks = [
+    {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = "0.0.0.0/0"
+    }
+  ]
+    providers = {
+    aws = aws.service_consumer_main
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-    lifecycle {
-    create_before_destroy = true
-  }
-  provider = aws.service_consumer_main
 }
 
-resource "aws_security_group" "ssm_client" {
-  name        = "ssm-client"
-  description = "allow traffic from SSM Session maanger"
-  vpc_id      = module.service_consumer_main.vpc_id
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "TCP"
-    # cidr_blocks = module.service_consumer_main.private_subnets_cidr_blocks
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = merge(local.common_tags,{
-    Name = "ssm-client"
-  })
-    lifecycle {
-    create_before_destroy = true
-  }
-  provider = aws.service_consumer_main
-}
+
